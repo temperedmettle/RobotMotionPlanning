@@ -30,7 +30,7 @@ class Robot(object):
 		self.steps = 0
 
 	def check_if_done_exploring(self):
-		min_visits = 2
+		min_visits = 1
 		self.exploring = False
 		print "Checking if robot is done exploring"
 		if self.steps > 999:
@@ -76,7 +76,6 @@ class Robot(object):
 			str(edges[270]) + \
 			str(edges[180])
 		,2)	
-		# print "location:[", row, ", ", col, "], heading:", self.heading_degrees, " Edges:", self.world_edges[row][col], "Sensors:", sensors
 
 	def set_visited(self):
 		row = self.location[0]
@@ -105,10 +104,6 @@ class Robot(object):
 			col = ""
 			for j in range(self.maze_dim):
 				col += "{0: 3}".format(self.world_visited[i][j])
-				#if [i,j] == self.location:
-				#	col += "{0: 3}".format(99)
-				#else:
-				#	col += "{0: 3}".format(self.world_visited[i][j])
 			print col		
 			
 	def next_exploration_move(self, sensors):	
@@ -146,13 +141,19 @@ class Robot(object):
 			possible_actions.append([
 				possible_rotation,
 				possible_movement])				
-		if possible_actions == [] or self.steps == 0: # make a right turn
+		if possible_actions == []: # make a right turn
 			possible_rotation = self.clockwise
 			possible_movement = 0
 			possible_actions.append([
 				possible_rotation,
 				possible_movement])			
-				
+		if self.steps == 0:
+			possible_actions = []
+			possible_rotation = self.clockwise
+			possible_movement = 0
+			possible_actions.append([
+				possible_rotation,
+				possible_movement])			
 		
 		for i in range(len(possible_actions)):
 			possible_rotation = possible_actions[i][0]
@@ -178,12 +179,11 @@ class Robot(object):
 				possible_heading_degrees,
 				[possible_location[0],possible_location[1]]
 				])
-	 	#print "BAI", better_actions_interim
+
 		min_visits = min(better_actions_interim)[0]
-		#print "MV", min_visits
+
 		better_actions = [action for action in better_actions_interim if action[0]==min_visits]
 		
-		#print "BA", better_actions
 		if len(better_actions) == 1:
 			action_choice = better_actions[0]
 		else:
@@ -222,15 +222,12 @@ class Robot(object):
 		'''
 		
 		rotation = 0
-		movement = 0
+		movement = 0	
 	
-		
-		#old_heading = self.heading
-		
-			
-	
-		# Update the robot's view of the world - first entry is 8 at [0,0]
+		# Update the robot's view of the world/maze - first entry is 8 at [0,0]
 		self.set_edge_data(sensors)
+
+		# If exploring, ask the robot for its next move
 		rotation, movement, self.heading_degrees, self.location = self.next_exploration_move(sensors)
 		if self.exploring:
 			self.check_if_done_exploring()
@@ -240,50 +237,5 @@ class Robot(object):
 				
 				return ('Reset', 'Reset')
 		self.steps += 1
-				
-		#possible_heading_degrees = self.heading_degrees
-		#possible_location = self.location
-		#unexplored_move_directions = []
-		#possible_move_directions = []
-		#if sensors[0] > 0:
-		#	possible_move_directions.append(counter_clockwise)
-		#	possible_location[0] += movement * (int(np.sin(np.deg2rad(self.heading_degrees + counter_clockwise + (180 * counter_clockwise/90)))))
-		#	possible_location[1] += movement * (int(np.cos(np.deg2rad(self.heading_degrees + counter_clockwise + (180 * counter_clockwise/90)))))
-		#	if self.world_view[possible_location[0]][possible_location[1]] == 0:
-		#		unexplored_move_directions.append(counter_clockwise)
-		#		
-		#if sensors[1] > 0:
-		#	possible_move_directions.append(straight)
-		#	possible_location[0] += movement * (int(np.sin(np.deg2rad(self.heading_degrees + straight + (180 * straight/90)))))
-		#	possible_location[1] += movement * (int(np.cos(np.deg2rad(self.heading_degrees + straight + (180 * straight/90)))))
-		#	if self.world_view[possible_location[0]][possible_location[1]] == 0:
-		#		unexplored_move_directions.append(counter_clockwise)
-		#
-		#if sensors[2] > 0:
-		#	possible_move_directions.append(clockwise)
-		#	possible_location[0] += movement * (int(np.sin(np.deg2rad(self.heading_degrees + clockwise + (180 * clockwise/90)))))
-		#	possible_location[1] += movement * (int(np.cos(np.deg2rad(self.heading_degrees + clockwise + (180 * clockwise/90)))))
-		#	if self.world_view[possible_location[0]][possible_location[1]] == 0:
-		#		unexplored_move_directions.append(clockwise)
-		#if unexplored_move_directions == []:
-		#	if possible_move_directions == []:
-		#		rotation = np.random.choice([clockwise, counter_clockwise])
-		#		movement = 0
-		#	else:
-		#		rotation = np.random.choice(possible_move_directions)
-		#		movement = 1
-		#else:
-		#	rotation = np.random.choice(unexplored_move_directions)
-		#	movement = 1
-		#self.heading_degrees = (self.heading_degrees + rotation + (180 * rotation/90)) % 360  # added heading correction
-		#self.location[0] += movement * (int(np.sin(np.deg2rad(self.heading_degrees))))
-		#self.location[1] += movement * (int(np.cos(np.deg2rad(self.heading_degrees))))
-
-
-
-
-
-		# print "loc:", self.location, ", step", self.steps, " -> old heading:", old_heading , ", turn:", {-90:'ccw', 0:'no', 90:'cw'}[rotation], ", step:", movement, ", new heading:", {90:'up',0:'right',270:'down',180:'left'}[self.heading_degrees]
-		
 
 		return rotation, movement
