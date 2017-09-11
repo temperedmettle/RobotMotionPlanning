@@ -33,7 +33,7 @@ class Robot(object):
 		min_visits = 1
 		self.exploring = False
 		print "Checking if robot is done exploring"
-		if self.steps > 999:
+		if self.steps > 1000:
 			return
 		for i in range(self.maze_dim-1, -1 , -1):
 			for j in range(self.maze_dim):
@@ -77,10 +77,10 @@ class Robot(object):
 			str(edges[180])
 		,2)	
 
-	def set_visited(self):
+	def set_visited(self,value):
 		row = self.location[0]
 		col = self.location[1]
-		self.world_visited[row][col] += 1
+		self.world_visited[row][col] += value
 	    
 	def show_world_edges(self):
 		'''
@@ -91,7 +91,7 @@ class Robot(object):
 		for i in range(self.maze_dim - 1, -1 , -1):
 			col = ""
 			for j in range(self.maze_dim):
-				col += "{0: 3}".format(self.world_edges[i][j])
+				col += "{0: 4}".format(self.world_edges[i][j])
 			print col
 			
 	def show_world_visited(self):
@@ -103,7 +103,7 @@ class Robot(object):
 		for i in range(self.maze_dim-1, -1 , -1):
 			col = ""
 			for j in range(self.maze_dim):
-				col += "{0: 3}".format(self.world_visited[i][j])
+				col += "{0: 4}".format(self.world_visited[i][j])
 			print col		
 			
 	def next_exploration_move(self, sensors):	
@@ -113,6 +113,8 @@ class Robot(object):
 		better_actions = []
 		possible_location = [0,0]
 		max_movement = 1
+		dead_end = False
+		dead_end_penalty = 50
 
 		if sensors[0] > 0: # robot's left-facing sensor
 			possible_rotation = self.counter_clockwise
@@ -141,21 +143,39 @@ class Robot(object):
 			possible_actions.append([
 				possible_rotation,
 				possible_movement])				
+		if (len(possible_actions)==1):
+			# Check if last location is a or leads to a dead end
+			last_location=[0,0]
+			last_location[0] = self.location[0] + (-1 * (int(np.sin(np.deg2rad(self.heading_degrees)))))
+			last_location[1] = self.location[1] + (-1 * (int(np.cos(np.deg2rad(self.heading_degrees)))))
+			if last_location[0] >= self.maze_dim:
+				last_location[0] = self.maze_dim - 1
+			elif last_location[0] < 0:
+				last_location[0] = 0
+			if last_location[1] >= self.maze_dim:
+				last_location[1] = self.maze_dim - 1
+			elif last_location[1] < 0:
+				last_location[1] = 0
+			if self.world_visited[last_location[0]][last_location[1]] >= dead_end_penalty:
+				dead_end = True
+
 		if possible_actions == []: # make a right turn
+			dead_end = True
 			possible_rotation = self.clockwise
 			possible_movement = 0
 			possible_actions.append([
 				possible_rotation,
 				possible_movement])			
-		if self.steps == 0:
+		if self.steps <= 1:
 			possible_actions = []
 			possible_rotation = self.clockwise
 			possible_movement = 0
 			possible_actions.append([
 				possible_rotation,
-				possible_movement])			
+				possible_movement])	
 		
 		for i in range(len(possible_actions)):
+			
 			possible_rotation = possible_actions[i][0]
 			possible_movement = possible_actions[i][1]
 			possible_heading_degrees = (self.heading_degrees + possible_rotation + (180 * possible_rotation/90)) % 360
@@ -171,15 +191,22 @@ class Robot(object):
 				possible_location[1] = self.maze_dim - 1
 			elif possible_location[1] < 0:
 				possible_location[1] = 0
-			
+			possible_sort_key = self.world_visited[possible_location[0]][possible_location[1]]
+
+			if self.world_visited[possible_location[0]][possible_location[1]] >= 50 and len(possible_actions)==1:
+				possible_location[0] = self.location[0]
+				possible_location[1] = self.location[1]
+				possible_movement = 0
+				possible_rotation = self.clockwise
+				possible_heading_degrees = (self.heading_degrees + possible_rotation + (180 * possible_rotation/90)) % 360
+
 			better_actions_interim.append([
 				self.world_visited[possible_location[0]][possible_location[1]],
 				possible_rotation,
 				possible_movement,
 				possible_heading_degrees,
 				[possible_location[0],possible_location[1]]
-				])
-
+				])	
 		min_visits = min(better_actions_interim)[0]
 
 		better_actions = [action for action in better_actions_interim if action[0]==min_visits]
@@ -193,10 +220,14 @@ class Robot(object):
 		next_movement = action_choice[2]
 		next_heading_degrees = action_choice[3]
 		next_location = action_choice[4]
-		self.set_visited()
+		if dead_end:
+			self.set_visited(dead_end_penalty)
+		else:
+			self.set_visited(1)
 		self.location[0] = next_location[0]
 		self.location[1] = next_location[1]
-		print "Next move:", action_choice , " at step", self.steps
+		if self.exploring:
+			print "Next move:", action_choice , " at step", self.steps
 		return next_rotation, next_movement, next_heading_degrees, next_location
 		
 	def next_move(self, sensors):
@@ -229,13 +260,19 @@ class Robot(object):
 
 		# If exploring, ask the robot for its next move
 		rotation, movement, self.heading_degrees, self.location = self.next_exploration_move(sensors)
+
+		# Check if the robot is done exploring.
+	
+		
 		if self.exploring:
 			self.check_if_done_exploring()
+
+			# If robot is done exploring, display edge and visit matrices then end the run
 			if not self.exploring:
 				self.show_world_edges()
 				self.show_world_visited()
-				
 				return ('Reset', 'Reset')
+
 		self.steps += 1
 
 		return rotation, movement
