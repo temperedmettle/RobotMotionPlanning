@@ -366,7 +366,7 @@ class Robot(object):
 				col += "{0: 4}".format(self.walls_matrix[i][j])
 			print col
 			
-	def show_visits(self):
+	def show_visits_matrix(self):
 		'''
 		The function  displays the cells of the maze that have been
 		visited by the robot
@@ -605,16 +605,19 @@ class Robot(object):
 		# If robot is on it's first run
 		if self.run == 0:		
 			if self.is_done_exploring():						
-				self.visits_matrix = [[0 for row in range(self.maze_dim)]  \
-					for col in range (self.maze_dim)]
+
 				self.location = [0,0]
 				self.heading = 'up'
 				self.steps = 1
-				self.find_shortest_path()
 				self.show_walls_matrix()
+				self.show_visits_matrix()
+				self.visits_matrix = [[0 for row in range(self.maze_dim)]  \
+					for col in range (self.maze_dim)]				
+				self.find_shortest_path()
 				self.show_steps_matrix()
 				self.show_turns_matrix()
 				self.show_headings_matrix()
+
 				if self.steps < 1000:
 					return ('Reset', 'Reset')				
 			else:
