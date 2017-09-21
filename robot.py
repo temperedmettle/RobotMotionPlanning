@@ -311,8 +311,7 @@ class Robot(object):
 				(self.headings_matrix[current_location[0]][current_location[1]] \
 				+ 180) % 360
 			current_location[0] += 1 * (int(np.sin(np.deg2rad(heading))))
-			current_location[1] += 1 * (int(np.cos(np.deg2rad(heading))))
-			current_location = self.validated_location(current_location)
+			current_location[1] += 1 * (int(np.cos(np.deg2rad(heading))))			
 			shortest_path.append(heading_reverse)
 
 		# Go through the shortest_path list from last to first element
