@@ -16,10 +16,10 @@ class Robot(object):
 		# This list contains the four cells in the center of the maze. This
 		# is the goal area.
 		self.goal = [
-			[self.maze_dim,self.maze_dim],
-			[self.maze_dim-1,self.maze_dim-1], 
-			[self.maze_dim,self.maze_dim-1],
-			[self.maze_dim-1,self.maze_dim]
+			[(self.maze_dim / 2),(self.maze_dim / 2) ],
+			[(self.maze_dim / 2)-1,(self.maze_dim / 2)-1], 
+			[(self.maze_dim / 2),(self.maze_dim / 2)-1],
+			[(self.maze_dim / 2)-1,(self.maze_dim / 2)]
 			]
 
 		# Store the robot's last location to help us mark dead end paths. 
@@ -39,6 +39,7 @@ class Robot(object):
 		# In case the robot starts his second run on a dead end path, this
 		# variable will help the robot pass through the dead end cells until
 		# it reaches a junction.
+		self.before_first_junction=[]
 		self.first_junction=[]
 
 		# Initialize the cells of the walls_matrix matrix to 15 (binary value
@@ -90,6 +91,25 @@ class Robot(object):
 		# Initialize the number of steps that the robot will make during
 		# each run	
 		self.steps = 1
+	def is_goal_reached(self):
+		for row, col in self.goal:
+			if self.visits_matrix[row][col] > 0:
+				return True
+		return False	
+	def distance_to_goal(self,location):
+		distance = (self.maze_dim / 2) - 1
+		for row, col in self.goal:
+			possible_distance = abs(row - location[0]) + abs(col - location[1])
+			if possible_distance < distance:
+				distance = possible_distance
+				
+		return possible_distance	
+
+	def distance_to_origin(self,location):
+		return abs(0 - location[0]) + abs(0 - location[1])
+
+	def distance_to_first_junction(self,location):
+		return abs(self.first_junction[0] - location[0]) + abs(self.first_junction[1] - location[1])
 
 	def get_heading_text(self, degrees):
 		# This function is called by initial_run_move() to update the global
@@ -114,6 +134,27 @@ class Robot(object):
 		if self.run == 0 and self.steps > 999: # Exploration ends at 1000 steps
 			self.run = 1
 			return True
+		if self.is_goal_reached(): \
+			#and self.distance_to_first_junction(self.location) == 0:
+			self.run = 1
+			for i in range(self.maze_dim-1, -1 , -1): 
+				for j in range(self.maze_dim):
+					# Exploration does not end until the robot has 'seen' all the
+					# cell edges of the maze
+					if self.sensed_matrix[i][j] < 15:
+						sensed = self.get_edges_dict([i,j],'sensed') 
+						walls = self.get_edges_dict([i,j],'wall')
+						for key in sensed:
+							if sensed[key] == '0':
+								walls[key] = 0
+						self.walls_matrix[i][j] = int(
+							str(walls[90]) + \
+							str(walls[0]) + \
+							str(walls[270]) + \
+							str(walls[180])
+						,2)
+			return True
+
 		for i in range(self.maze_dim-1, -1 , -1): 
 			for j in range(self.maze_dim):
 				 # Exploration does not end until the robot has 'seen' all the
@@ -121,6 +162,7 @@ class Robot(object):
 				if self.sensed_matrix[i][j] < 15:
 					return False
 		self.run = 1
+		
 		return True
 
 	def get_edge_data(self, location):
@@ -319,6 +361,7 @@ class Robot(object):
 		if not ([row,col] in self.goal):
 
 			edges = self.get_edges_dict([row,col], 'wall')
+
 			possible_steps = []
 
 			# Loop through each edge of the square cell. The variable key
@@ -362,13 +405,13 @@ class Robot(object):
 		entry_point = [self.maze_dim/2, self.maze_dim/2]
 		entry_steps = self.steps_matrix[self.maze_dim/2][self.maze_dim/2]
 
-		if self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2] < entry_steps:
+		if self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2] > entry_steps:
 			entry_steps = self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2]
 			entry_point = [self.maze_dim/2 - 1, self.maze_dim/2]
-		if self.steps_matrix[self.maze_dim/2][self.maze_dim/2 - 1] < entry_steps:
+		if self.steps_matrix[self.maze_dim/2][self.maze_dim/2 - 1] > entry_steps:
 			entry_steps = self.steps_matrix[self.maze_dim/2][self.maze_dim/2 - 1]
 			entry_point = [self.maze_dim/2, self.maze_dim/2 - 1]
-		if self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2 - 1] < entry_steps:
+		if self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2 - 1] > entry_steps:
 			entry_steps = self.steps_matrix[self.maze_dim/2 - 1][self.maze_dim/2 - 1]
 			entry_point = [self.maze_dim/2 - 1, self.maze_dim/2 - 1]
 		return entry_point	
@@ -398,7 +441,9 @@ class Robot(object):
 		# all the wayback to the starting location. Record the reversed
 		# heading to the shortest_path list.
 		current_location = self.get_goal_location()
+		
 		while current_location != [0,0]:
+
 			heading = self.headings_matrix[current_location[0]][current_location[1]]
 			heading_reverse = \
 				(self.headings_matrix[current_location[0]][current_location[1]] \
@@ -406,6 +451,7 @@ class Robot(object):
 			current_location[0] += 1 * (int(np.sin(np.deg2rad(heading))))
 			current_location[1] += 1 * (int(np.cos(np.deg2rad(heading))))
 			current_location = self.validated_location(current_location)
+
 			shortest_path.append(heading_reverse)
 
 		# Go through the shortest_path list from last to first element
@@ -436,7 +482,11 @@ class Robot(object):
 				current_move = 1
 				if not shortest_path:
 					self.final_moves.append([current_rotation,current_move])
+			elif current_heading == old_heading:
+				if not shortest_path:
+					self.final_moves.append([current_rotation,current_move])		
 			old_heading = current_heading	
+
 		return
 
 	def increment_visit_count(self,location):
@@ -553,7 +603,7 @@ class Robot(object):
 		# This is called by the next_move() function during the robot's
 		# first run, when it attempts to map the maze.
 		dead_end = False
-		dead_end_penalty = 1600
+		dead_end_penalty = 160000
 		possible_actions = []
 		possible_rotation = 0
 		possible_movement = 0
@@ -571,14 +621,15 @@ class Robot(object):
 
 		possible_actions = self.get_possible_actions(sensors)
 		if len(possible_actions) > 1: 
-			if self.first_junction == []:
+			if self.before_first_junction == []:
 				
-				self.first_junction = self.last_location[:]
+				self.before_first_junction = self.last_location[:]
+				self.first_junction = self.location[:]
 
 		if possible_actions == []:
 			# Allow the robot to make a right turn when unable to move
 			# any further
-			if not (self.first_junction==[]):
+			if not (self.before_first_junction==[]):
 				dead_end = True
 			possible_rotation = self.rotations['clockwise']
 			possible_movement = 0
@@ -590,7 +641,7 @@ class Robot(object):
 			# a, or leads to a dead end. If so, then we should mark this
 			# location as part of a dead end path
 			if self.get_edge_data(self.last_location) == 0:
-				if not (self.first_junction==[]):
+				if not (self.before_first_junction==[]):
 					dead_end = True
 		
 		for i in range(len(possible_actions)):
@@ -610,13 +661,20 @@ class Robot(object):
 
 			# Use the possible location's visit count as sort key with
 			# sensed data as tie-breaker
-			sort_key = self.visits_matrix[possible_location[0]][possible_location[1]] * 100 + self.sensed_matrix[possible_location[0]][possible_location[1]]
+			
+			if self.is_goal_reached():
+				sort_key = self.visits_matrix[possible_location[0]][possible_location[1]] * 10000 \
+					+ (self.sensed_matrix[possible_location[0]][possible_location[1]]) * 100 \
+					+ self.distance_to_origin(possible_location)
+			else:
+				sort_key = self.visits_matrix[possible_location[0]][possible_location[1]] * 10000 \
+					+ self.distance_to_goal(possible_location) * 100
 			# Avoid dead ends by adding a dead end penatly to the sort key.
 			# Can only go through if starting a run.
 			if (self.get_edge_data(possible_location) == 0 \
 				and possible_movement > 0 \
 				and self.get_edge_data(self.last_location) > 0) \
-				or possible_location == self.first_junction:
+				or possible_location == self.before_first_junction:
 				sort_key = dead_end_penalty
 
 			# Build up sortable_actions from possible_actions plus these
@@ -670,6 +728,7 @@ class Robot(object):
 		# This function is called inside next_move() during the robot's
 		# second run when it attempts to reach its goal with the least
 		# amount of moves.
+		
 		next_rotation, next_movement = self.final_moves[self.steps-1]
 		return next_rotation, next_movement	
 
@@ -706,18 +765,28 @@ class Robot(object):
 
 			self.update_wall_data(sensors)
 			if self.is_done_exploring():
+				print "First run completed in", self.steps, "steps"
 				self.location = [0,0]
 				self.heading = 'up'
 				self.steps = 1
+				self.show_sensed_matrix()
+				self.show_walls_matrix()
+
 				self.visits_matrix = [[0 for row in range(self.maze_dim)]  \
 					for col in range (self.maze_dim)]				
 				self.find_shortest_path()
+				self.show_steps_matrix()
+
+				print "Computed optimal path has", len(self.final_moves), "moves." 
 				if self.steps < 1000:
+
 					return ('Reset', 'Reset')				
 			else:
 				rotation, movement = self.initial_run_move(sensors)
 		else:
+			
 			rotation, movement = self.final_run_move()
+			
 		self.steps += 1
 
 		return rotation, movement
