@@ -47,7 +47,7 @@ class MicromouseGraph(Graph):
 		self.MOVEMENTS = {'up':(0,1),'down':(0,-1),'left':(-1,0),'right':(1,0)}
 		self.TURNS = {'left':90, 'none':0, 'right':-90}
 		self.start_node = (0,0)
-		#self.before_first_junction = ()
+		self.before_first_junction = ()
 		self.grid_size = size
 		self.goal_nodes = [
 			((size / 2),(size / 2) ),
@@ -65,10 +65,12 @@ class MicromouseGraph(Graph):
 	def display_grid(self, location, heading, notes):
 		# This function will display the path taken by the robot, as well as the optimal path
 		# that the robot has found. The following color coding is used:
-		# 		yellow = visited
-		# 		red = dead end
-		#		green = goal node or optimal path node
-		#		black = the robot
+		#
+		# 		yellow	= 	visited
+		# 		red 	= 	dead end
+		#		green 	= 	goal node or optimal path node
+		#		black 	= 	the robot
+		#
 		# Additionally, the robot and optimal paths will include heading information 
 
 		time.sleep(0.05)
@@ -91,8 +93,8 @@ class MicromouseGraph(Graph):
 									idx -= 1								
 								char = ARROWS[self.optimal_path_headings[idx]]		
 							col += bcolors.OKGREEN + char + bcolors.ENDC
-						#elif (x,y) == self.before_first_junction:
-						#	col += bcolors.OKBLUE + " + " + bcolors.ENDC	
+						elif (x,y) == self.before_first_junction:
+							col += bcolors.OKBLUE + " + " + bcolors.ENDC		
 						else:
 							col += bcolors.WARNING + " + " + bcolors.ENDC
 					else:
@@ -197,15 +199,20 @@ class MicromouseGraph(Graph):
 					cost = 0
 					if next_node in self.dead_ends:
 						cost = 200000 # Prevent getting into dead end paths
+					elif next_node == self.before_first_junction and not self.goal_explored:
+							cost = 200000 # Prevent the robot from reaching the starting point when goal has not been explored
 					elif next_node in self.node_visits:	
 						if next_node in self.goal_nodes:	
 							cost = 200000 # Prevent the robot from re-entering the goal area during exploration
 						else:
 							cost = self.node_visits[next_node] # Use visit count to avoid loops
-					if self.goal_explored:	
+					if self.goal_explored:
 						heuristic = self.heuristic(next_node, 'origin') # Use heuristic to get to the start node faster.
 					else:
-						heuristic = self.heuristic(next_node, 'center') # Use heuristic to get to the goal faster.
+						if (0,15) in self.node_visits:
+							heuristic = self.heuristic(next_node, 'center') # Use heuristic to get to the goal faster.
+						else:	
+							heuristic = self.heuristic(next_node, 'top-left') # Use heuristic to get to the top-right corner.
 					priority = cost * 100 + heuristic # prioritize by visits then heuristic
 					if priority < top_priority:
 						top_priority = priority
@@ -231,9 +238,12 @@ class MicromouseGraph(Graph):
 		if endpoint == 'center':
 			center = (self.grid_size / 2) - 1.5
 			return abs(node[0] - center) + abs(node[1] - center)
-		else:	
+		elif endpoint == 'origin':	
 			return abs(node[0] - 0) + abs(node[1] - 0)
-
+		elif endpoint == 'top-right':
+			return abs(node[0] - 15) + abs(node[1] - 15)
+		else: 	
+			return abs(node[0] - 0) + abs(node[1] - 15)
 	def search_Astar(self): # A* implementation of path finder
 		frontier = PriorityQueue()
 		frontier.put((0,self.start_node))

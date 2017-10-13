@@ -28,9 +28,8 @@ class Robot(object):
 		# This function returns the rotation and movement values for the next
 		# exploratory move.
 
-
-		#if self.graph.before_first_junction==() and (int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0))  < 2:
-		#	self.graph.before_first_junction = self.last_location
+		if self.graph.before_first_junction==() and (int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0))  < 2:
+			self.graph.before_first_junction = self.last_location
 
 		# Check for and remember nodes that are in dead end paths 
 		if sum(sensors) == 0 or \
@@ -105,8 +104,9 @@ class Robot(object):
 				# Show the optimal path to the goal.
 				self.graph.display_grid(self.location, self.heading, 
 					"Exploration steps: " + str(self.steps) + "\n" \
-					+ "Best path # of steps: " + str(len(self.graph.optimal_path_nodes)-1) + "\n" \
-					+ "Best path # of moves: " + str(len(self.graph.optimal_path)) \
+					+ "Path length: " + str(len(self.graph.optimal_path_nodes)-1) + "\n" \
+					+ "Number of moves: " + str(len(self.graph.optimal_path)) + "\n" \
+					+ "Maze coverage:" + str(((len(self.graph.node_visits) * 1.0) / self.maze_dim ** 2 ) * 100) \
 				)	
 				self.steps = 0 # Reset number of steps
 				return ('Reset', 'Reset') # End the first run

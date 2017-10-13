@@ -1,6 +1,5 @@
 import numpy as np
-from utilities import MicromouseGraph
-
+from utilities import MicromouseGraph 
 
 class Robot(object):
 	def __init__(self, maze_dim):
@@ -18,7 +17,7 @@ class Robot(object):
 
 
 		self.last_location = (0,0)
-		self.graph = MicromouseGraph(maze_dim)
+		self.graph = MicromouseGraph(maze_dim) # Instantiate the graph object that we will be using
 
 		# Set self.run to 0 for robot's first run. Value is 1 for second run.
 		self.run = 0	
@@ -26,30 +25,32 @@ class Robot(object):
 
 
 	def explore(self, sensors):
+		# This function returns the rotation and movement values for the next
+		# exploratory move.
 
+		if self.graph.before_first_junction==() and (int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0))  < 2:
+			self.graph.before_first_junction = self.last_location
+
+		# Check for and remember nodes that are in dead end paths 
 		if sum(sensors) == 0 or \
 		(int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0)) == 2 and self.last_location in self.graph.dead_ends:
 			self.graph.dead_ends.append(self.location)
 
-		self.graph.debug_print(("Step", self.steps))
 		current_node = self.location
-		self.graph.update_links(current_node, self.heading, sensors)
-		self.graph.add_visit(current_node)
-		result = self.graph.next_exploration_move(current_node, self.heading)
+		self.graph.update_links(current_node, self.heading, sensors) # Update links to detected nodes
+		self.graph.add_visit(current_node) # Increment visit count for the current node
+		result = self.graph.next_exploration_move(current_node, self.heading) # Get next rotation and movement values
 		rotation, movement = result[0]
-		if movement:
-			self.last_location = self.location[:]	
-		self.location = result[1]
-		self.heading = result[2]
-		self.graph.debug_print(("rot:",rotation, ", move:",movement, ", hdg:",self.heading, ", loc:", self.location))
-			
-
+		if movement: # If location is going to change, set the last location to this location
+			self.last_location = self.location[:]
+		self.location = result[1] # Set location attribute to the next location
+		self.heading = result[2] # Set the heading attribute to the next heading 
 		return (rotation, movement)
 
-
-	def get_best_move(self):
-		
-		return (0,0)	
+	def solve(self):
+		# This function returns the rotation and movement values for the next step
+		# of the best path
+		return self.graph.optimal_path[self.steps]
 
 	def next_move(self, sensors):
 		'''
@@ -75,30 +76,43 @@ class Robot(object):
 		
 		rotation = 0
 		movement = 0	
-
-		# Update the edges of the robot's current location - first entry is 8
-		# at [0,0]
 		
-		# If robot is on it's first run
-		if self.run == 0:
+		if self.run == 0: # If robot is exploring the maze
+
+			# Displays the robot's path as it explores the maze. Visited cells
+			# are yellow, dead ends are red, and green is the goal.
 			self.graph.display_grid(self.location, self.heading, "Steps:" + str(self.steps))
+
+			# If the goal is reached while exploring, reset the visits counter and
+			# let the robot continue exploring until it reaches the starting point
 			if self.location in self.graph.goal_nodes:
-				self.graph.goal_explored = True
-				self.graph.set_goal_entry_node(self.location)
-				self.graph.node_visits = {}
-				self.graph.debug_print(("GOAL REACHED -> GOING BACK NOW"))
+				self.graph.goal_explored = True # Robot has reached the goal area
+				self.graph.set_goal_entry_node(self.location) # Set the goal area's entry point
+				for node in self.graph.node_visits:
+					self.graph.node_visits[node] = 0
 
+			# If the goal is reached and the robot has returned to the starting location,
+			# prepare the robot to begin the second run.
 			if self.graph.goal_explored and self.location == (0,0):
-				self.graph.debug_print(("Links",len(self.graph.links)))
-				self.steps = 0
-				self.run = 1
-				self.graph.node_visits
-				self.graph.get_path('A*')
-				return ('Reset', 'Reset')
-			else:	
-				rotation, movement = self.explore(sensors)
-		else:
-			rotation, movement = self.get_best_move()
-		self.steps += 1
+				self.run = 1 # Set to second run
+				print "exploratory steps",self.steps		
+				self.graph.optimal_path = self.graph.get_path('A*') # Generate optimal path using A*
+				print "# of moves", len(self.graph.optimal_path)
+				print "optimal path nodes",len(self.graph.optimal_path_nodes)
+				print "optimal path headings",len(self.graph.optimal_path_headings)
 
+				# Show the optimal path to the goal.
+				self.graph.display_grid(self.location, self.heading, 
+					"Exploration steps: " + str(self.steps) + "\n" \
+					+ "Path length: " + str(len(self.graph.optimal_path_nodes)-1) + "\n" \
+					+ "Number of moves: " + str(len(self.graph.optimal_path)) + "\n" \
+					+ "Maze coverage:" + str(((len(self.graph.node_visits) * 1.0) / self.maze_dim ** 2 ) * 100) \
+				)	
+				self.steps = 0 # Reset number of steps
+				return ('Reset', 'Reset') # End the first run
+			else: # If robot is still exploring 
+				rotation, movement = self.explore(sensors) # Get next exploration move
+		else: # If robot is done exploring, get the next move from the optimal path
+			rotation, movement = self.solve()
+		self.steps += 1 # Increment number of steps
 		return rotation, movement
