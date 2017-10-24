@@ -1,5 +1,139 @@
-import numpy as np
-from utilities import MicromouseGraph 
+import numpy as np 
+from Queue import PriorityQueue
+import os
+import time
+
+class bcolors:
+	# colors used is displaying paths
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
+class MicromouseGraph(object):
+	def __init__(self, size):
+		self.nodes = []
+		self.links = []
+		self.goal_area = [
+			((size / 2),(size / 2) ),
+			((size / 2)-1,(size / 2)-1), 
+			((size / 2),(size / 2)-1),
+			((size / 2)-1,(size / 2))
+			]
+		self.start_node = (0,0)
+		self.goal_node = ()
+		self.dead_ends = [self.start_node]
+		self.node_visits = {}
+		self.optimal_path_nodes = []
+		self.optimal_path_headings = []
+		self.before_first_junction = ()
+		self.steps = 0
+		# Initialize the nodes of the maze
+
+		rows = size
+		cols = size
+		for x in range(cols):
+			for y in range (rows):
+				self.nodes.append((x,y))
+	def add_link (self, node_1, node_2):
+		if not (node_1,node_2) in self.links:
+			self.links.append((node_1,node_2))
+		if not (node_2,node_1) in self.links:
+			self.links.append((node_2,node_1))
+	def neighbors (self, node):
+		neighbors = []
+		for (node_1, node_2) in self.links:
+			if node == node_1:
+				neighbors.append(node_2)
+		return neighbors
+	
+	def best_path (self, node_1, node_2):
+		# Start of Djikstra's Search Algorithm
+		frontier = PriorityQueue()
+		frontier.put((0,node_1))
+		from_node = {}
+		from_node[node_1] = None
+		cost = {}
+		cost[node_1] = 0
+		path = []
+		current_node = ()
+		while not frontier.empty():
+			current_node = (frontier.get())[1]	
+			if not (current_node in self.goal_area):
+				for next_node in self.neighbors(current_node):
+					last_node = current_node
+					if from_node[current_node]:
+						last_node = from_node[current_node] 
+					turn_penalty = 1	
+					if (last_node[0] + current_node[0] + next_node[0])/3 == next_node[0]:
+						turn_penalty = 0
+					new_cost = cost[current_node] + turn_penalty + 1
+					if next_node not in cost or new_cost < cost[next_node]:
+						cost[next_node] = new_cost
+						priority = new_cost
+						frontier.put((priority,next_node))
+						from_node[next_node] = current_node
+			else:
+				break		
+		path = [current_node]
+		while current_node != self.start_node:
+			current_node = from_node[current_node]
+			path.append(current_node)
+		path.reverse()
+		# End of Djikstra's Search Algorithm
+		self.optimal_path_nodes = path
+		return path
+
+	def display_grid(self, location, heading, size, notes):
+		# This function will display the path taken by the robot, as well as the optimal path
+		# that the robot has found. The following color coding is used:
+		#
+		# 		yellow	= 	visited
+		# 		red 	= 	dead end
+		#		green 	= 	goal node or optimal path node
+		#		black 	= 	the robot
+		#
+		# Additionally, the robot and optimal paths will include heading information 
+
+		time.sleep(0.05)
+		ARROWS = {'up':' ^ ','right':' > ','down':' v ','left':' < '}
+		os.system('cls' if os.name == 'nt' else 'clear')
+		for y in range(size - 1, -1 , -1):
+			col = "  "
+			for x in range(size):	
+				if (x,y) == location:
+					col += bcolors.BOLD + ARROWS[heading] + bcolors.ENDC
+				else:
+					if (x,y) in self.dead_ends:
+						col += bcolors.RED + " + " + bcolors.ENDC					
+					elif (x,y) in self.node_visits:
+						if (x,y) in (self.goal_area + self.optimal_path_nodes):
+							char = " + "
+							if (x,y) in self.optimal_path_nodes:
+								idx = self.optimal_path_nodes.index((x,y))
+								if idx == len(self.optimal_path_headings):
+									idx -= 1								
+								char = ARROWS[self.optimal_path_headings[idx]]		
+							col += bcolors.GREEN + char + bcolors.ENDC
+						elif (x,y) == self.before_first_junction:
+							col += bcolors.BLUE + " + " + bcolors.ENDC		
+						else:
+							col += bcolors.YELLOW + " + " + bcolors.ENDC
+					else:
+						char = " + "
+						if (x,y) in self.optimal_path_nodes:
+							idx = self.optimal_path_nodes.index((x,y))
+							if idx == len(self.optimal_path_headings):
+								idx -= 1
+							char = ARROWS[self.optimal_path_headings[idx]]								
+							col += bcolors.GREEN + char + bcolors.ENDC
+						else:	
+							col += "   "		
+			print col
+		print notes
+
 
 class Robot(object):
 	def __init__(self, maze_dim):
@@ -13,44 +147,132 @@ class Robot(object):
 		self.location = (0, 0)
 		self.heading = 'up'
 		self.maze_dim = maze_dim
+		self.exploring = True # Values are: 0 for exploration, 1 for maze-solving
+		self.graph = MicromouseGraph(self.maze_dim)
+		self.MOVEMENTS = (
+			{'up':(0,1),'down':(0,-1),'left':(-1,0),'right':(1,0)},
+			{(0,1):'up',(0,-1):'down',(-1,0):'left',(1,0):'right'})
+		self.HEADINGS = (
+			{90:'up', 270:'down', 180:'left', 0:'right', -90:'down', 360:'right'},
+			{'up':90, 'down':270, 'left':180, 'right':0} )		
+		self.STEERING_DIRECTIONS = (-1,0,1) # counterclockwise, no turn, clockwise
+		self.ROTATION_ANGLE = 90
+		self.fast_run_moves = []
+		self.fast_run_step = 0
+		self.last_location = self.graph.start_node
 
+	def next_location_and_heading(self, location, heading, rotation, movement):
+		new_heading =  self.HEADINGS[0][self.HEADINGS[1][heading] - rotation]
+		new_location = (
+			location[0] + self.MOVEMENTS[0][new_heading][0] * movement,
+			location[1] + self.MOVEMENTS[0][new_heading][1] * movement)  		
+		return (new_location, new_heading)
 
+	def moves_to_goal(self, path):
+		
+		path_headings = []
+		# Convert the path's (x,y) coordinates to headings
+		last_node = path[0]
+		last_heading = 'up'
+		for i in xrange(1,len(path)):
+			current_node = path[i]
+			current_heading = last_heading
+			for move, heading in self.MOVEMENTS[1].iteritems():
+				if (last_node[0] + move[0], last_node[1] + move[1]) == current_node:
+					current_heading = heading
+			last_heading = current_heading
+			last_node = current_node	
+			path_headings.append(current_heading)
 
-		self.last_location = (0,0)
-		self.graph = MicromouseGraph(maze_dim) # Instantiate the graph object that we will be using
+		self.graph.optimal_path_headings = path_headings[:]
 
-		# Set self.run to 0 for robot's first run. Value is 1 for second run.
-		self.run = 0	
-		self.steps = 1
+		# Optimize path by converting up to three forward steps into one move
+		path_headings_and_steps = []	
+		last_heading = 'up'
+		count = 0	
+		for i in range(len(path_headings)):
+			if (path_headings[i] != last_heading) or (count == 3):
+				path_headings_and_steps.append((last_heading, count))
+				count = 0
+				if i == len(path_headings)-1:
+					path_headings_and_steps.append((path_headings[i], count + 1))						
+			else:
+				if i == len(path_headings)-1:
+					path_headings_and_steps.append((path_headings[i], count + 1))					
+			count += 1
+			last_heading = path_headings[i]
 
+		# Convert headings to rotations	
+		path_rotations_and_steps = []
+		last_heading = 'up'	
+		for i in range(len(path_headings_and_steps)):
+			rotation = self.HEADINGS[1][last_heading] - self.HEADINGS[1][path_headings_and_steps[i][0]]
+			if rotation == 270:
+				rotation = -90
+			elif rotation == - 270:
+				rotation = 90
+			steps = path_headings_and_steps[i][1]
+			path_rotations_and_steps.append((rotation, steps))
+			last_heading = path_headings_and_steps[i][0]	
+		return path_rotations_and_steps
 
-	def explore(self, sensors):
-		# This function returns the rotation and movement values for the next
-		# exploratory move.
-
-		if self.graph.before_first_junction==() and (int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0))  < 2:
-			self.graph.before_first_junction = self.last_location
-
-		# Check for and remember nodes that are in dead end paths 
-		if sum(sensors) == 0 or \
-		(int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0)) == 2 and self.last_location in self.graph.dead_ends:
+	def explore(self,sensors):
+		if sum(sensors) == 0:
 			self.graph.dead_ends.append(self.location)
+			return (90, 0)
+		if (int(sensors[0]==0) + int(sensors[1]==0) + int(sensors[2]==0)) == 2 \
+		and self.last_location in self.graph.dead_ends:
+			self.graph.dead_ends.append(self.location)
+				
+		possible_moves = []
+		priority_moves = []
+		top_priority = (1, 1000, self.maze_dim)
+		# Add to possible moves 
+		for i in range(len(self.STEERING_DIRECTIONS)):
+			rotation = self.STEERING_DIRECTIONS[i] * self.ROTATION_ANGLE
+			movement = 0
+			distance = sensors[i]
+			new_heading = self.HEADINGS[0][(self.HEADINGS[1][self.heading]-rotation)]
+			if distance > 3:
+				movement = 3
+			else:
+				movement = distance	
+			if movement > 0:
+				current_node = self.location[:]
+				new_node = self.location[:]
+				for steps in range(distance):
+					new_node = (
+						current_node[0] + self.MOVEMENTS[0][new_heading][0] , 
+						current_node[1] + self.MOVEMENTS[0][new_heading][1] )
+					self.graph.add_link(current_node, new_node)	
+					current_node = new_node	
+					if (steps + 1) <= 3:
+						if new_node in self.graph.node_visits:
+							cost = self.graph.node_visits[new_node]
+						else:
+							cost = 0
+						center = self.maze_dim / 2 - 0.5
+						heuristic = abs(new_node[0] - center) + abs(new_node[1] - center)
+						dead_end_penalty = int(new_node in self.graph.dead_ends)
+						priority =	(dead_end_penalty, cost, heuristic)
+						if priority < top_priority:
+							top_priority = priority
+						possible_moves.append((priority, (rotation, steps + 1) ))
+		#print possible_moves
 
-		current_node = self.location
-		self.graph.update_links(current_node, self.heading, sensors) # Update links to detected nodes
-		self.graph.add_visit(current_node) # Increment visit count for the current node
-		result = self.graph.next_exploration_move(current_node, self.heading) # Get next rotation and movement values
-		rotation, movement = result[0]
-		if movement: # If location is going to change, set the last location to this location
-			self.last_location = self.location[:]
-		self.location = result[1] # Set location attribute to the next location
-		self.heading = result[2] # Set the heading attribute to the next heading 
-		return (rotation, movement)
+		for result in possible_moves:
+			if result[0] == top_priority:
+				priority_moves.append(result[1])
 
+
+		# Randomly select rotation and movement from list of possible moves
+		random_choice = np.random.randint( len( priority_moves ) )
+		rotation, movement = priority_moves[random_choice]
+		if self.location in self.graph.dead_ends:
+			movement = 1
+		return (rotation, 1)
 	def solve(self):
-		# This function returns the rotation and movement values for the next step
-		# of the best path
-		return self.graph.optimal_path[self.steps]
+		return self.fast_run_moves[self.fast_run_step]	
 
 	def next_move(self, sensors):
 		'''
@@ -73,46 +295,38 @@ class Robot(object):
 		the maze) then returing the tuple ('Reset', 'Reset') will indicate to
 		the tester to end the run and return the robot to the start.
 		'''
-		
-		rotation = 0
-		movement = 0	
-		
-		if self.run == 0: # If robot is exploring the maze
 
-			# Displays the robot's path as it explores the maze. Visited cells
-			# are yellow, dead ends are red, and green is the goal.
-			self.graph.display_grid(self.location, self.heading, "Steps:" + str(self.steps))
+		if self.exploring:
+			if self.location in self.graph.node_visits:
+				self.graph.node_visits[self.location] += 1
+			else:
+				self.graph.node_visits[self.location] = 1	
+			self.graph.display_grid(self.location, self.heading, self.maze_dim, "Steps:"+ str(self.graph.steps))
+			if self.location in self.graph.goal_area:
+				self.goal_node = self.location[:]
+				self.exploring = False
+				best_path = self.graph.best_path(self.graph.start_node, self.graph.goal_node)
+				self.fast_run_moves = self.moves_to_goal(best_path)
+				self.graph.display_grid(self.location, self.heading, self.maze_dim, "Steps: " + str(self.graph.steps))
+				# print "Exploration Steps:", self.graph.steps
+				# print "Best path length:", len(self.graph.optimal_path_nodes)-1
+				# print "Best path moves:", len(self.fast_run_moves)
+				# print "Maze coverage:", str(((len(self.graph.node_visits) * 1.0) / self.maze_dim ** 2 ) * 100), "%"
+				print self.graph.steps,",", str(((len(self.graph.node_visits) * 1.0) / self.maze_dim ** 2 ) * 100), ",",(self.graph.steps * 1.0)/30 + len(self.fast_run_moves), ",",len(self.graph.optimal_path_nodes)-1, ",", len(self.fast_run_moves)
 
-			# If the goal is reached while exploring, reset the visits counter and
-			# let the robot continue exploring until it reaches the starting point
-			if self.location in self.graph.goal_nodes:
-				self.graph.goal_explored = True # Robot has reached the goal area
-				self.graph.set_goal_entry_node(self.location) # Set the goal area's entry point
-				for node in self.graph.node_visits:
-					self.graph.node_visits[node] = 0
-
-			# If the goal is reached and the robot has returned to the starting location,
-			# prepare the robot to begin the second run.
-			if self.graph.goal_explored and self.location == (0,0):
-				self.run = 1 # Set to second run
-				print "exploratory steps",self.steps		
-				self.graph.optimal_path = self.graph.get_path('A*') # Generate optimal path using A*
-				print "# of moves", len(self.graph.optimal_path)
-				print "optimal path nodes",len(self.graph.optimal_path_nodes)
-				print "optimal path headings",len(self.graph.optimal_path_headings)
-
-				# Show the optimal path to the goal.
-				self.graph.display_grid(self.location, self.heading, 
-					"Exploration steps: " + str(self.steps) + "\n" \
-					+ "Path length: " + str(len(self.graph.optimal_path_nodes)-1) + "\n" \
-					+ "Number of moves: " + str(len(self.graph.optimal_path)) + "\n" \
-					+ "Maze coverage:" + str(((len(self.graph.node_visits) * 1.0) / self.maze_dim ** 2 ) * 100) \
-				)	
-				self.steps = 0 # Reset number of steps
-				return ('Reset', 'Reset') # End the first run
-			else: # If robot is still exploring 
-				rotation, movement = self.explore(sensors) # Get next exploration move
-		else: # If robot is done exploring, get the next move from the optimal path
+				
+				return ('Reset', 'Reset')
+			rotation, movement = self.explore(sensors)		
+		else:
 			rotation, movement = self.solve()
-		self.steps += 1 # Increment number of steps
+			self.fast_run_step += 1
+
+		self.last_location = self.location[:]		
+		self.location, self.heading = self.next_location_and_heading (
+			self.location, 
+			self.heading, 
+			rotation, 
+			movement )		
+		self.graph.steps+=1
+		
 		return rotation, movement
